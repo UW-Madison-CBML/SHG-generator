@@ -1,7 +1,5 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.ndimage import gaussian_filter
-from scipy.interpolate import make_splprep
 
 import VectorField as vecfield
 import SplineSample as splinesamp
@@ -26,25 +24,22 @@ def generate_synthetic_shg(
     L_density=0.6,
     L_curve=0.5,
     L_conn=0.3,
-    L_intensity=0.55,
-    # intensity_range=(0.6, 0.75),
-    gamma=1,
-    contrast=0.65,
+    # spline waviness (ground-truth wavy-fiber geometry)
+    wave_amplitude_px=2.8,      # max wobble amplitude, in raster-space pixels
+    wave_wavelength_px=None,    # wobble wavelength, in raster-space pixels
+                                # (None -> derived from fiber_width_px)
+    L_wave_freq=0.5,            # spatial clustering of wavelength variation
     show_plots=True,
     save_prefix="synthetic",
-    should_norm="True",
-    norm_targ=1,
-    wave_factor=1
 ):
     rng = np.random.default_rng(seed)
-    # spline_num = int(1200 * G_density)
 
     # Vector field
     X, Y = vecfield.create_grid(image_size, resolution_factor)
     wells, W, hard_zero_mask = vecfield.make_wells(X, Y, G_conn, rng)
-    
+
     viz.plot_all_wells(wells=wells, X=X, Y=Y, hard_mask=hard_zero_mask)
-    
+
     D = vecfield.make_density(W, hard_zero_mask, G_density, L_density, rng)
     Qx_g, Qy_g = vecfield.make_global_orientation(X.shape, G_align, G_curve, rng)
     Qx_w, Qy_w, influence = vecfield.make_well_orientation(X, Y, Qx_g, Qy_g, wells)
@@ -55,11 +50,7 @@ def generate_synthetic_shg(
     theta = vecfield.axial_to_theta(Qx, Qy)
 
     aux_curve_field, aux_conn_field = vecfield.make_fiber_aux_fields(X.shape, L_curve, L_conn, rng)
-    # opacity_cfg = {"intensity_range": intensity_range}
-    opacity_cfg = {"brightness": contrast}
-    regional_intensity = opacity.make_regional_intensity_field(
-        X.shape, L_intensity, rng, opacity_cfg,
-    )
+    aux_wave_freq_field = vecfield.make_wave_freq_field(X.shape, L_wave_freq, rng)
 
     np.savez_compressed(
         f"{save_prefix}_Q_field.npz",
@@ -67,7 +58,7 @@ def generate_synthetic_shg(
         well_influence=influence,
         aux_curve_field=aux_curve_field,
         aux_conn_field=aux_conn_field,
-        regional_intensity=regional_intensity,
+        aux_wave_freq_field=aux_wave_freq_field,
     )
 
     # Spline stage
@@ -85,10 +76,10 @@ def generate_synthetic_shg(
     splines = [splinesamp.fit_spline(f, smoothing=smoothing, num_samples=num_samples) for f in fibers]
 
     aux_L_curve, aux_L_conn = vecfield.sample_aux_at_seeds(seeds, aux_curve_field, aux_conn_field)
+    aux_L_wave_freq = vecfield.sample_field_at_seeds(seeds, aux_wave_freq_field)
+
     opacity_rng = np.random.default_rng(seed + 1234)
-    opacity_table = opacity.build_fiber_opacity_table(
-        seeds, regional_intensity, opacity_rng, opacity_cfg,
-    )
+    opacity_table = opacity.build_fiber_opacity_table(len(splines), opacity_rng)
 
     np.savez_compressed(
         f"{save_prefix}_splines.npz",
@@ -99,30 +90,28 @@ def generate_synthetic_shg(
         splines=np.array(splines, dtype=object),
         aux_L_curve=aux_L_curve,
         aux_L_conn=aux_L_conn,
+        aux_L_wave_freq=aux_L_wave_freq,
         fiber_base=opacity_table.fiber_base,
         spline_length=spline_length,
     )
 
-    # Rasterize
+    # Rasterize -- barebones: splines to pixels, plus the wavy-fiber wobble
+    # and the (mostly-subtle-by-default) brightness model.
     img = raster.rasterize_splines(
         H,
         Wpx,
         splines,
         thickness=fiber_width_px,
         oversample=4.0,
-        gamma=gamma,
-        contrast=contrast,
         out_H=raster_size,
         out_W=raster_size,
-        # intensity_range=intensity_range,
+        wave_amplitude_px=wave_amplitude_px,
+        wave_wavelength_px=wave_wavelength_px,
+        aux_wave_amp=aux_L_curve,
+        aux_wave_freq=aux_L_wave_freq,
         L_conn=L_conn,
-        aux_L_curve=aux_L_curve,
         aux_L_conn=aux_L_conn,
         opacity_table=opacity_table,
-        opacity_cfg=opacity_cfg,
-        normalize=should_norm,
-        norm_target=norm_targ,
-        wave_factor=wave_factor
     )
 
     plt.imsave(f"{save_prefix}_raster.png", img, cmap="gray")
@@ -180,7 +169,7 @@ def generate_synthetic_shg(
         "well_influence": influence,
         "aux_L_curve": aux_L_curve,
         "aux_L_conn": aux_L_conn,
-        "regional_intensity": regional_intensity,
+        "aux_L_wave_freq": aux_L_wave_freq,
         "opacity_table": opacity_table,
         "spline_length": spline_length,
     }

@@ -298,6 +298,21 @@ def make_fiber_aux_fields(shape, L_curve, L_conn, rng):
     return np.clip(curve_field, 0.0, 1.0), np.clip(conn_field, 0.0, 1.0)
 
 
+def make_wave_freq_field(shape, L_wave_freq, rng):
+    # Spatial field controlling per-fiber wobble wavelength.
+
+    # Mirrors make_fiber_aux_fields: smooth, clustered noise centered on
+    # L_wave_freq with spread scaling with L_wave_freq. Sample this at seed
+    # locations and pass the result to rasterize_splines(aux_wave_freq=...).
+    
+    L_wave_freq = float(np.clip(L_wave_freq, 0.0, 1.0))
+    sigma = 2.0 + 16.0 * L_wave_freq
+    raw = _normalize_field01(gaussian_filter(rng.uniform(0.0, 1.0, shape), sigma))
+    spread = 0.15 + 0.35 * L_wave_freq
+    field = L_wave_freq + spread * (raw - 0.5) * 2.0
+    return np.clip(field, 0.0, 1.0)
+
+
 def _bilinear_sample(field, row, col):
     h, w = field.shape
     if row < 0 or col < 0 or row >= h - 1 or col >= w - 1:
@@ -315,14 +330,17 @@ def _bilinear_sample(field, row, col):
     )
 
 
-def sample_aux_at_seeds(seeds, curve_field, conn_field):
+def sample_field_at_seeds(seeds, field):
+    """Generic bilinear sampling of any scalar field at seed (row, col) locations."""
     seeds = np.asarray(seeds, dtype=np.float64)
     n = seeds.shape[0]
-    aux_curve = np.zeros(n, dtype=np.float64)
-    aux_conn = np.zeros(n, dtype=np.float64)
-
+    out = np.zeros(n, dtype=np.float64)
     for i, (row, col) in enumerate(seeds):
-        aux_curve[i] = _bilinear_sample(curve_field, float(row), float(col))
-        aux_conn[i] = _bilinear_sample(conn_field, float(row), float(col))
+        out[i] = _bilinear_sample(field, float(row), float(col))
+    return out
 
+
+def sample_aux_at_seeds(seeds, curve_field, conn_field):
+    aux_curve = sample_field_at_seeds(seeds, curve_field)
+    aux_conn = sample_field_at_seeds(seeds, conn_field)
     return aux_curve, aux_conn
