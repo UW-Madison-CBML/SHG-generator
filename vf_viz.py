@@ -4,7 +4,16 @@ import matplotlib.patches as mpatches
 from matplotlib.colors import Normalize
 from matplotlib.cm import ScalarMappable
 
-WELL_HARD_SCALE = 1  # match VectorField.py
+import VectorField as vecfield
+
+# Pulled from VectorField.py directly rather than hardcoded, so these plots
+# never go stale relative to whatever you've tuned WELL_OUTER_DECAY /
+# WELL_INFLUENCE_TAU to (both used to be hardcoded copies here -- e.g. the
+# 0.75 decay length and 0.15 tau threshold -- which silently drifted out of
+# sync once those constants got tuned in VectorField.py).
+WELL_HARD_SCALE = vecfield.WELL_HARD_SCALE
+WELL_OUTER_DECAY = vecfield.WELL_OUTER_DECAY
+WELL_INFLUENCE_TAU = vecfield.WELL_INFLUENCE_TAU
 
 
 def _quiver_stride(shape, n_arrows=28):
@@ -13,11 +22,10 @@ def _quiver_stride(shape, n_arrows=28):
 
 
 def _axial_to_headless_uv(Qx, Qy, stride):
-    """
-    Subsample an axial (director) field and convert to ±(u,v) pairs so that
-    quiver draws headless line segments (both directions shown).
-    Returns xs, ys, us, vs all 1-D.
-    """
+    # Subsample an axial (director) field and convert to +-(u,v) pairs so that
+    # quiver draws headless line segments (both directions shown).
+    # Returns xs, ys, us, vs all 1-D.
+
     sl = (slice(None, None, stride), slice(None, None, stride))
     qx = Qx[sl]
     qy = Qy[sl]
@@ -53,18 +61,17 @@ def _save_or_show(fig, save_path):
 
 def plot_well_potential(W, X, Y, wells, hard_mask,
                         show_boundaries=True, save_path=None):
-    """
-    Heatmap of the aggregate well potential W, with optional hard-boundary
-    ellipses and well-centre markers overlaid.
+    # Heatmap of the aggregate well potential W, with optional hard-boundary
+    # ellipses and well-centre markers overlaid.
 
-    Parameters
-    ----------
-    W            : (M, M) array  — output of make_wells
-    X, Y         : (M, M) arrays — coordinate grids
-    wells        : (K, 5) array  — [cx, cy, sx, sy, phi]
-    hard_mask    : (M, M) bool   — True inside any hard ellipse
-    show_boundaries : overlay hard ellipse outlines
-    """
+    # Parameters
+    # ----------
+    # W            : (M, M) array  — output of make_wells
+    # X, Y         : (M, M) arrays — coordinate grids
+    # wells        : (K, 5) array  — [cx, cy, sx, sy, phi]
+    # hard_mask    : (M, M) bool   — True inside any hard ellipse
+    # show_boundaries : overlay hard ellipse outlines
+
     fig, ax = plt.subplots(figsize=(6, 6))
     extent = [X.min(), X.max(), Y.min(), Y.max()]
 
@@ -92,16 +99,16 @@ def plot_well_potential(W, X, Y, wells, hard_mask,
 # Single well
 
 def plot_single_well(wells, index, X, Y, save_path=None):
-    """
-    Isolate and visualise one well: its own potential slice, hard boundary,
-    and the exponential decay profile along the major axis.
 
-    Parameters
-    ----------
-    wells : (K, 5) array
-    index : int — which well to highlight (0-based)
-    X, Y  : coordinate grids
-    """
+    # Isolate and visualise one well: its own potential slice, hard boundary,
+    # and the exponential decay profile along the major axis.
+
+    # Parameters
+    # ----------
+    # wells : (K, 5) array
+    # index : int — which well to highlight (0-based)
+    # X, Y  : coordinate grids
+
     if len(wells) == 0:
         raise ValueError("No wells to plot.")
     if index >= len(wells):
@@ -119,7 +126,7 @@ def plot_single_well(wells, index, X, Y, save_path=None):
          (yr / (WELL_HARD_SCALE * ay  + 1e-8))**2
     r  = np.sqrt(np.maximum(r2, 1e-12))
     outside = np.maximum(r - 1.0, 0.0)
-    W_single = np.exp(-outside / 0.75)
+    W_single = np.exp(-outside / WELL_OUTER_DECAY)
     hard_single = r2 <= 1.0
 
     fig, axes = plt.subplots(1, 2, figsize=(11, 5))
@@ -149,7 +156,7 @@ def plot_single_well(wells, index, X, Y, save_path=None):
     xr_line =  ca * t + 0.0   # wy term cancels in relative coords
     r_line  = np.abs(xr_line) / (WELL_HARD_SCALE * ax_ + 1e-8)
     out_line = np.maximum(r_line - 1.0, 0.0)
-    w_line  = np.exp(-out_line / 0.75)
+    w_line  = np.exp(-out_line / WELL_OUTER_DECAY)
 
     r_signed = t / (WELL_HARD_SCALE * ax_ + 1e-8)
     axes[1].plot(r_signed[in_bounds], w_line[in_bounds],
@@ -171,16 +178,15 @@ def plot_single_well(wells, index, X, Y, save_path=None):
 # All wells
 
 def plot_all_wells(wells, X, Y, hard_mask, save_path=None):
-    """
-    One panel per well, each showing its isolated potential + hard boundary.
-    Arranges into a grid of subplots automatically.
+    # One panel per well, each showing its isolated potential + hard boundary.
+    # Arranges into a grid of subplots automatically.
 
-    Parameters
-    ----------
-    wells     : (K, 5) array
-    X, Y      : coordinate grids
-    hard_mask : aggregate hard mask (shown as light overlay in background)
-    """
+    # Parameters
+    # ----------
+    # wells     : (K, 5) array
+    # X, Y      : coordinate grids
+    # hard_mask : aggregate hard mask (shown as light overlay in background)
+
     K = len(wells)
     if K == 0:
         print("No wells to plot.")
@@ -205,7 +211,7 @@ def plot_all_wells(wells, X, Y, hard_mask, save_path=None):
         r2 = (xr / (WELL_HARD_SCALE * ax_ + 1e-8))**2 + \
              (yr / (WELL_HARD_SCALE * ay  + 1e-8))**2
         outside = np.maximum(np.sqrt(np.maximum(r2, 1e-12)) - 1.0, 0.0)
-        W_i = np.exp(-outside / 0.75)
+        W_i = np.exp(-outside / WELL_OUTER_DECAY)
 
         ax.imshow(W_i, origin="lower", extent=extent,
                   cmap="inferno", interpolation="bilinear", vmin=0, vmax=1)
@@ -230,16 +236,15 @@ def plot_all_wells(wells, X, Y, hard_mask, save_path=None):
 # Hard boundaries
 
 def plot_hard_boundaries(wells, X, Y, hard_mask, save_path=None):
-    """
-    Two-panel plot: (left) the boolean hard_mask as an image,
-    (right) each ellipse outline drawn analytically on a clean axes.
+    # Two-panel plot: (left) the boolean hard_mask as an image,
+    # (right) each ellipse outline drawn analytically on a clean axes.
 
-    Parameters
-    ----------
-    wells     : (K, 5) array
-    X, Y      : coordinate grids
-    hard_mask : (M, M) bool array
-    """
+    # Parameters
+    # ----------
+    # wells     : (K, 5) array
+    # X, Y      : coordinate grids
+    # hard_mask : (M, M) bool array
+
     fig, axes = plt.subplots(1, 2, figsize=(12, 5))
     extent = [X.min(), X.max(), Y.min(), Y.max()]
 
@@ -262,9 +267,10 @@ def plot_hard_boundaries(wells, X, Y, hard_mask, save_path=None):
             linewidth=1.8, edgecolor=color, facecolor=color, alpha=0.35,
             label=f"Well {idx}"
         )
-        # soft-influence boundary (tau=0.15 corresponds to e^(-outside/0.75)=0.15
-        # → outside = -0.75*ln(0.15) ≈ 1.42, i.e. r = 2.42 × hard axes)
-        tau_r = 1.0 + (-0.75 * np.log(0.15))  # ≈ 2.42
+        # soft-influence boundary: WELL_INFLUENCE_TAU corresponds to
+        # e^(-outside/WELL_OUTER_DECAY) = WELL_INFLUENCE_TAU
+        # -> outside = -WELL_OUTER_DECAY * ln(WELL_INFLUENCE_TAU)
+        tau_r = 1.0 + (-WELL_OUTER_DECAY * np.log(WELL_INFLUENCE_TAU))
         patch_soft = _well_ellipse_patch(
             wx, wy, ax_ * tau_r, ay * tau_r, ang,
             linewidth=1.0, edgecolor=color, facecolor="none",
@@ -294,15 +300,14 @@ def plot_hard_boundaries(wells, X, Y, hard_mask, save_path=None):
 # Density field
 
 def plot_density(D, hard_mask=None, wells=None, save_path=None):
-    """
-    Heatmap of the fiber density field D.
+    # Heatmap of the fiber density field D.
 
-    Parameters
-    ----------
-    D         : (M, M) float array — output of make_density
-    hard_mask : optional (M, M) bool — overlays hard-zero regions
-    wells     : optional (K, 5) array — overlays well centres
-    """
+    # Parameters
+    # ----------
+    # D         : (M, M) float array — output of make_density
+    # hard_mask : optional (M, M) bool — overlays hard-zero regions
+    # wells     : optional (K, 5) array — overlays well centres
+
     fig, ax = plt.subplots(figsize=(6, 6))
     im = ax.imshow(D, origin="lower", cmap="viridis",
                    interpolation="bilinear")
@@ -330,17 +335,16 @@ def plot_density(D, hard_mask=None, wells=None, save_path=None):
 def plot_orientation_field(Qx, Qy, density_mask=None, wells=None,
                            n_arrows=28, title="Orientation field",
                            save_path=None):
-    """
-    HSV colormap where hue encodes fiber angle θ = ½ arctan2(Qy, Qx),
-    overlaid with a headless quiver plot.
+    # HSV colormap where hue encodes fiber angle θ = ½ arctan2(Qy, Qx),
+    # overlaid with a headless quiver plot.
 
-    Parameters
-    ----------
-    Qx, Qy       : (M, M) axial Q-tensor components
-    density_mask : optional (M, M) float — modulates alpha of quiver arrows
-    wells        : optional (K, 5) — overlay hard boundaries
-    n_arrows     : approximate number of arrows per axis
-    """
+    # Parameters
+    # ----------
+    # Qx, Qy       : (M, M) axial Q-tensor components
+    # density_mask : optional (M, M) float — modulates alpha of quiver arrows
+    # wells        : optional (K, 5) — overlay hard boundaries
+    # n_arrows     : approximate number of arrows per axis
+
     theta = 0.5 * np.arctan2(Qy, Qx)          # in [-π/2, π/2]
     hue   = (theta / np.pi + 0.5) % 1.0        # map to [0, 1]
 
@@ -398,18 +402,20 @@ def plot_orientation_field(Qx, Qy, density_mask=None, wells=None,
 
 # Well influence field
 
-def plot_well_influence(influence, wells, X, Y, tau=0.15, save_path=None):
-    """
-    Heatmap of the per-pixel well influence weight, with the tau threshold
-    contour and well boundaries overlaid.
+def plot_well_influence(influence, wells, X, Y, tau=None, save_path=None):
+    # Heatmap of the per-pixel well influence weight, with the tau threshold
+    # contour and well boundaries overlaid.
 
-    Parameters
-    ----------
-    influence : (M, M) float — output of make_well_orientation (3rd return)
-    wells     : (K, 5) array
-    X, Y      : coordinate grids
-    tau       : influence threshold (WELL_INFLUENCE_TAU)
-    """
+    # Parameters
+    # ----------
+    # influence : (M, M) float — output of make_well_orientation (3rd return)
+    # wells     : (K, 5) array
+    # X, Y      : coordinate grids
+    # tau       : influence threshold. Defaults to VectorField.WELL_INFLUENCE_TAU
+    #             (the actual threshold used in relax()'s hard-snap cutoff).
+
+    if tau is None:
+        tau = WELL_INFLUENCE_TAU
     fig, ax = plt.subplots(figsize=(6, 6))
     extent = [X.min(), X.max(), Y.min(), Y.max()]
 
@@ -448,24 +454,31 @@ def plot_well_influence(influence, wells, X, Y, tau=0.15, save_path=None):
 
 # Aux fields (curve / conn)
 
-def plot_aux_fields(curve_field, conn_field, seeds=None, save_path=None):
-    """
-    Side-by-side heatmaps of the curve and conn auxiliary fields.
+def plot_aux_fields(curve_field, conn_field, wave_freq_field=None, seeds=None, save_path=None):
+    # Side-by-side heatmaps of the curve, conn, and (optionally) wave-frequency
+    # auxiliary fields.
 
-    Parameters
-    ----------
-    curve_field : (M, M) float — output of make_fiber_aux_fields
-    conn_field  : (M, M) float
-    seeds       : optional (N, 2) array of (row, col) seed positions to overlay
-    """
-    fig, axes = plt.subplots(1, 2, figsize=(11, 5))
+    # Parameters
+    # ----------
+    # curve_field     : (M, M) float — output of make_fiber_aux_fields
+    # conn_field      : (M, M) float — output of make_fiber_aux_fields
+    # wave_freq_field : optional (M, M) float — output of make_wave_freq_field.
+    #                   This controls each fiber's sinusoidal wobble
+    #                   wavelength in rasterize_splines (aux_wave_freq).
+    # seeds           : optional (N, 2) array of (row, col) seed positions to overlay
 
-    for ax, field, title, cmap in zip(
-        axes,
-        [curve_field, conn_field],
-        ["Curve field (local curviness)", "Conn field (local connectivity)"],
-        ["YlOrRd", "YlGnBu"]
-    ):
+    fields = [curve_field, conn_field]
+    titles = ["Curve field (local curviness)", "Conn field (local connectivity)"]
+    cmaps = ["YlOrRd", "YlGnBu"]
+    if wave_freq_field is not None:
+        fields.append(wave_freq_field)
+        titles.append("Wave-freq field (wobble wavelength)")
+        cmaps.append("PuBuGn")
+
+    fig, axes = plt.subplots(1, len(fields), figsize=(5.5 * len(fields), 5), squeeze=False)
+    axes = axes[0]
+
+    for ax, field, title, cmap in zip(axes, fields, titles, cmaps):
         im = ax.imshow(field, origin="lower", cmap=cmap,
                        interpolation="bilinear", vmin=0, vmax=1)
         fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
@@ -481,19 +494,59 @@ def plot_aux_fields(curve_field, conn_field, seeds=None, save_path=None):
     return _save_or_show(fig, save_path)
 
 
+# Per-fiber susceptibility (field-following vs. straight/rogue crossover fibers)
+
+def plot_susceptibility(seeds, aux_susceptibility, D=None, save_path=None):
+    # Visualize per-fiber susceptibility values: seed locations colored by how
+    # strongly each fiber follows the local vector field (1 = follows it
+    # faithfully, 0 = walks straight/independent of it, driving crossover).
+    # Low L_align pushes this toward a bimodal split -- see the histogram
+    # panel for whether that's actually showing up in a given run.
+
+    # Parameters
+    # ----------
+    # seeds               : (N, 2) array of (row, col) seed positions
+    # aux_susceptibility  : (N,) float in [0,1] — per-fiber susceptibility,
+    #                       e.g. SyntheticGen's `res["aux_susceptibility"]`
+    # D                   : optional (M, M) density field, shown as a faint backdrop
+
+    fig, axes = plt.subplots(1, 2, figsize=(11, 5))
+
+    ax = axes[0]
+    if D is not None:
+        ax.imshow(D, cmap="magma", alpha=0.35, origin="lower")
+    sc = ax.scatter(seeds[:, 1], seeds[:, 0], c=aux_susceptibility,
+                    cmap="coolwarm_r", vmin=0, vmax=1, s=14, edgecolors="none")
+    fig.colorbar(sc, ax=ax, fraction=0.046, pad=0.04, label="Susceptibility")
+    ax.set_title("Per-fiber susceptibility\n(blue=follows field, red=straight/rogue)")
+    ax.set_xticks([]); ax.set_yticks([])
+
+    ax = axes[1]
+    ax.hist(aux_susceptibility, bins=40, range=(0, 1),
+            color="steelblue", edgecolor="none")
+    ax.set_xlabel("Susceptibility")
+    ax.set_ylabel("Fiber count")
+    frac_rogue = float(np.mean(aux_susceptibility < 0.2))
+    frac_faithful = float(np.mean(aux_susceptibility > 0.8))
+    ax.set_title(f"Distribution  (rogue <0.2: {frac_rogue:.0%}, faithful >0.8: {frac_faithful:.0%})")
+
+    fig.suptitle("Fiber susceptibility / crossover diagnostics", fontsize=12)
+    fig.tight_layout()
+    return _save_or_show(fig, save_path)
+
+
 # Full overview
 
 def plot_overview(W, hard_mask, D, Qx, Qy, influence, wells, X, Y,
                   save_path=None):
-    """
-    Six-panel summary: potential, hard mask, density, orientation,
-    well influence, and per-angle histogram.
+    # Six-panel summary: potential, hard mask, density, orientation,
+    # well influence, and per-angle histogram.
 
-    Parameters
-    ----------
-    W, hard_mask, D, Qx, Qy, influence : standard VectorField.py outputs
-    wells, X, Y                         : as usual
-    """
+    # Parameters
+    # ----------
+    # W, hard_mask, D, Qx, Qy, influence : standard VectorField.py outputs
+    # wells, X, Y                         : as usual
+    
     fig, axes = plt.subplots(2, 3, figsize=(15, 10))
     extent = [X.min(), X.max(), Y.min(), Y.max()]
     M = Qx.shape[0]
@@ -550,7 +603,7 @@ def plot_overview(W, hard_mask, D, Qx, Qy, influence, wells, X, Y,
     ax = axes[1][1]
     ax.imshow(influence, origin="lower", extent=extent, cmap="plasma",
               interpolation="bilinear", vmin=0, vmax=1)
-    ax.contour(X, Y, influence, levels=[0.15],
+    ax.contour(X, Y, influence, levels=[WELL_INFLUENCE_TAU],
                colors=["lime"], linewidths=1.0, linestyles="--")
     ax.set_title("Well influence"); ax.set_xticks([]); ax.set_yticks([])
 

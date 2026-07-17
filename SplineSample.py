@@ -3,7 +3,25 @@ import matplotlib.pyplot as plt
 from scipy.ndimage import gaussian_filter
 from scipy.interpolate import make_splprep
 
-def sample_vector(vx, vy, pos):
+def sample_vector(vx, vy, pos, ref_dir=None):
+    # Sample the axial/nematic orientation field (vx=Qx=cos(2*theta),
+    # vy=Qy=sin(2*theta)) at pos and decode it back to a real direction unit
+    # vector (dy, dx).
+
+    # Bilinearly interpolating Qx/Qy directly (as done below) is correct for
+    # an axial field -- it's *why* the double-angle encoding exists, so
+    # orientations 180 degrees apart average out instead of cancelling. But
+    # the interpolated result must be decoded (theta = 0.5*atan2(Qy,Qx))
+    # before it's used as a direction to walk along, or you get a field that
+    # effectively rotates at 2x the true rate -- harmless where theta is
+    # slowly varying, but produces spurious spirals/inward-pointing paths
+    # wherever theta turns sharply (e.g. wrapping around a well).
+
+    # Since axial data is headless (theta and theta+pi are the same
+    # orientation), decoding gives two opposite candidate directions. When
+    # ref_dir is provided (the previous step's heading), whichever candidate
+    # is more aligned with it is returned, so the streamline doesn't
+    # randomly flip 180 degrees step to step.
     h, w = vx.shape
     y, x = pos
     if x < 0 or x >= w - 1 or y < 0 or y >= h - 1:
@@ -20,11 +38,18 @@ def sample_vector(vx, vy, pos):
             + dx * dy * arr[y0 + 1, x0 + 1]
         )
 
-    v = np.array([interp(vy), interp(vx)])
-    n = np.linalg.norm(v)
-    if n == 0:
+    Qx = interp(vx)
+    Qy = interp(vy)
+    if Qx == 0.0 and Qy == 0.0:
         return None
-    return v / n
+
+    theta = 0.5 * np.arctan2(Qy, Qx)
+    d = np.array([np.sin(theta), np.cos(theta)])  # (dy, dx), matches pos=(y, x)
+
+    if ref_dir is not None and (d[0] * ref_dir[0] + d[1] * ref_dir[1]) < 0.0:
+        d = -d
+
+    return d
 
 
 def resolve_streamline_steps(spline_length=None, max_steps=None, default=300):
@@ -38,22 +63,46 @@ def resolve_streamline_steps(spline_length=None, max_steps=None, default=300):
 
 def integrate_streamline(
     vx, vy, seed, step_size=1.0, max_steps=None, spline_length=None,
-    direction=1, L_curve=0.5, rng=None,
+    direction=1, L_curve=0.5, susceptibility=1.0, rng=None,
 ):
+    # susceptibility in [0,1]: how strongly this fiber follows the local
+    # vector field at each step.
+    #   1.0 -> follows the field faithfully (original behavior).
+    #   0.0 -> ignores the field entirely and walks in a straight line along
+    #          whatever direction it first sampled at the seed -- this is
+    #          what lets a fiber stay straight and cross paths with curvier
+    #          neighbors, regardless of how the field bends further along.
+    # Values in between blend the two, so a fiber can be "mostly straight
+    # but nudged by the field" rather than an all-or-nothing switch.
     pts = []
     pos = np.array(seed, dtype=float)
     rng = np.random.default_rng() if rng is None else rng
     max_angle = 0.35 * L_curve
     n_steps = resolve_streamline_steps(spline_length=spline_length, max_steps=max_steps)
+    susceptibility = float(np.clip(susceptibility, 0.0, 1.0))
+
+    ref_dir = None       # previous step's heading, for headless (axial) continuity
+    preferred_dir = None  # this fiber's own straight-line heading (set from its first field sample)
 
     for _ in range(n_steps):
-        v1 = sample_vector(vx, vy, pos)
+        v1 = sample_vector(vx, vy, pos, ref_dir=ref_dir)
         if v1 is None:
             break
+        if preferred_dir is None:
+            preferred_dir = v1.copy()
+
         mid = pos + 0.5 * step_size * direction * v1
-        v2 = sample_vector(vx, vy, mid)
+        v2 = sample_vector(vx, vy, mid, ref_dir=ref_dir if ref_dir is not None else v1)
         if v2 is None:
             break
+
+        if susceptibility < 1.0:
+            # preferred_dir is itself headless -- flip it to match v2's
+            # current sign before blending so they don't cancel out.
+            pref = preferred_dir if (preferred_dir[0] * v2[0] + preferred_dir[1] * v2[1]) >= 0.0 else -preferred_dir
+            blended = susceptibility * v2 + (1.0 - susceptibility) * pref
+            n = np.linalg.norm(blended)
+            v2 = blended / n if n > 1e-8 else pref
 
         if max_angle > 0:
             a = rng.normal(0.0, max_angle)
@@ -64,21 +113,22 @@ def integrate_streamline(
 
         pos = pos + step_size * direction * v2
         pts.append(pos.copy())
+        ref_dir = v2
 
     return np.array(pts)
 
 
 def generate_fiber(
     vx, vy, seed, step_size=1.0, max_steps=None, spline_length=None,
-    L_curve=0.5, rng=None,
+    L_curve=0.5, susceptibility=1.0, rng=None,
 ):
     forward = integrate_streamline(
         vx, vy, seed, step_size, max_steps=max_steps, spline_length=spline_length,
-        direction=1, L_curve=L_curve, rng=rng,
+        direction=1, L_curve=L_curve, susceptibility=susceptibility, rng=rng,
     )
     backward = integrate_streamline(
         vx, vy, seed, step_size, max_steps=max_steps, spline_length=spline_length,
-        direction=-1, L_curve=L_curve, rng=rng,
+        direction=-1, L_curve=L_curve, susceptibility=susceptibility, rng=rng,
     )
 
     pts = []

@@ -37,6 +37,20 @@ def rasterize_splines(
     opacity_table=None,
     opacity_cfg=None,
 ):
+    # Rasterize a list of polyline splines into a grayscale ground-truth image.
+
+    # Barebones by design: splines -> pixels. Two effects are deliberately
+    # kept because real SHG collagen images show them too:
+
+    #   1. Sinusoidal wobble along each spline (wavy-fiber geometry).
+    #      Amplitude (`wave_amplitude_px` / `aux_wave_amp`) and wavelength
+    #      (`wave_wavelength_px` / `aux_wave_freq`) are fully decoupled --
+    #      change one without disturbing the other.
+    #   2. A brightness model (see Opacity.py): per-fiber jitter, an
+    #      along-fiber SHG phase wave, and connectivity-gap dimming.
+
+    # No tone-mapping of any kind -- the raster accumulator is just clipped
+    # to [0, 1] at the end.
     
     if out_H is None:
         out_H = H

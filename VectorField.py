@@ -24,7 +24,7 @@ def create_grid(image_size, resolution_factor):
 
 
 def _tangent_q_from_gradient(gx, gy, Qx_g, Qy_g):
-    """Return axial Q for fiber tangent perpendicular to the well potential gradient."""
+    # Return axial Q for fiber tangent perpendicular to the well potential gradient.
     grad_len = np.sqrt(gx * gx + gy * gy) + 1e-8
     rx = gx / grad_len
     ry = gy / grad_len
@@ -174,7 +174,7 @@ def make_global_orientation(shape, G_align, G_curve, rng):
 
 
 def _well_weight_and_tangent(X, Y, wells, Qx_ref, Qy_ref):
-    """Per-pixel nearest-well influence and tangent axial Q."""
+    # Per-pixel nearest-well influence and tangent axial Q.
     influence = np.zeros_like(X)
     Qx = np.zeros_like(X)
     Qy = np.zeros_like(Y)
@@ -304,7 +304,7 @@ def make_wave_freq_field(shape, L_wave_freq, rng):
     # Mirrors make_fiber_aux_fields: smooth, clustered noise centered on
     # L_wave_freq with spread scaling with L_wave_freq. Sample this at seed
     # locations and pass the result to rasterize_splines(aux_wave_freq=...).
-    
+
     L_wave_freq = float(np.clip(L_wave_freq, 0.0, 1.0))
     sigma = 2.0 + 16.0 * L_wave_freq
     raw = _normalize_field01(gaussian_filter(rng.uniform(0.0, 1.0, shape), sigma))
@@ -331,7 +331,7 @@ def _bilinear_sample(field, row, col):
 
 
 def sample_field_at_seeds(seeds, field):
-    """Generic bilinear sampling of any scalar field at seed (row, col) locations."""
+    # Generic bilinear sampling of any scalar field at seed (row, col) locations.
     seeds = np.asarray(seeds, dtype=np.float64)
     n = seeds.shape[0]
     out = np.zeros(n, dtype=np.float64)

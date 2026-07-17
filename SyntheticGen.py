@@ -24,6 +24,11 @@ def generate_synthetic_shg(
     L_density=0.6,
     L_curve=0.5,
     L_conn=0.3,
+    # per-fiber susceptibility to the local vector field. None -> derived
+    # from L_align (low L_align gives a mix of field-following and
+    # straight/independent "rogue" fibers, producing crossover). Pass a
+    # value in [0,1] directly to control this independently of L_align.
+    L_susceptibility=None,
     # spline waviness (ground-truth wavy-fiber geometry)
     wave_amplitude_px=2.8,      # max wobble amplitude, in raster-space pixels
     wave_wavelength_px=None,    # wobble wavelength, in raster-space pixels
@@ -65,11 +70,15 @@ def generate_synthetic_shg(
     H, Wpx = Qx.shape
     seeds = splinesamp.sample_seeds_from_density(D, spline_num, L_density, rng)
 
+    susceptibility_bias = L_align if L_susceptibility is None else L_susceptibility
+    aux_susceptibility = splinesamp.per_spline_auxiliary_values(susceptibility_bias, len(seeds), rng)
+
     fibers = [
         splinesamp.generate_fiber(
-            Qx, Qy, s, step_size=1.0, spline_length=spline_length, L_curve=L_curve, rng=rng,
+            Qx, Qy, s, step_size=1.0, spline_length=spline_length, L_curve=L_curve,
+            susceptibility=aux_susceptibility[i], rng=rng,
         )
-        for s in seeds
+        for i, s in enumerate(seeds)
     ]
     smoothing = 0.8 + 5.0 * (1 - L_curve)
     num_samples = max(100, int(4 * spline_length))
@@ -91,6 +100,7 @@ def generate_synthetic_shg(
         aux_L_curve=aux_L_curve,
         aux_L_conn=aux_L_conn,
         aux_L_wave_freq=aux_L_wave_freq,
+        aux_susceptibility=aux_susceptibility,
         fiber_base=opacity_table.fiber_base,
         spline_length=spline_length,
     )
@@ -126,11 +136,15 @@ def generate_synthetic_shg(
         x = np.linspace(0, 1, M)
         X_plot, Y_plot = np.meshgrid(x, y)
         step = 16
+        # theta decodes the axial (double-angle) Qx,Qy back to a real
+        # direction before plotting -- plotting Qx,Qy directly would show
+        # the field rotating at 2x its true rate, which looks fine where
+        # theta is slowly varying but produces spurious spirals near wells.
         ax[0].quiver(
             X_plot[::step, ::step],
             Y_plot[::step, ::step],
-            Qx[::step, ::step],
-            -Qy[::step, ::step],
+            np.cos(theta)[::step, ::step],
+            -np.sin(theta)[::step, ::step],
             color="cyan",
             scale=35,
             alpha=0.8,
@@ -170,6 +184,7 @@ def generate_synthetic_shg(
         "aux_L_curve": aux_L_curve,
         "aux_L_conn": aux_L_conn,
         "aux_L_wave_freq": aux_L_wave_freq,
+        "aux_susceptibility": aux_susceptibility,
         "opacity_table": opacity_table,
         "spline_length": spline_length,
     }
