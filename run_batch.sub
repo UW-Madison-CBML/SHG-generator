@@ -1,0 +1,23 @@
+Universe   = container
+container_image = docker://lsvaren/transformers
+#container_image = docker://barkailazimy/neural-sim:v1
+Executable = run_neural_sims.sh
+transfer_input_files = source.tar.gz
+
+should_transfer_files = YES
+when_to_transfer_output = ON_EXIT
+transfer_output_files = data.tar.gz
+transfer_output_remaps = "data.tar.gz = results/data_$(Process).tar.gz"
+
+request_memory = 24 GB
+request_disk = 100 GB
+request_cpus = 1
+
+batch_name = Synthetic_SHG
+output = $(Cluster).out
+error = $(Cluster).err
+log = $(Cluster).log
+
+#log                     = interactive.log
+
+queue 1

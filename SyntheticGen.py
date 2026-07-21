@@ -36,6 +36,7 @@ def generate_synthetic_shg(
     L_wave_freq=0.5,            # spatial clustering of wavelength variation
     show_plots=True,
     save_prefix="synthetic",
+    minimal=False,
 ):
     rng = np.random.default_rng(seed)
 
@@ -43,7 +44,8 @@ def generate_synthetic_shg(
     X, Y = vecfield.create_grid(image_size, resolution_factor)
     wells, W, hard_zero_mask = vecfield.make_wells(X, Y, G_conn, rng)
 
-    viz.plot_all_wells(wells=wells, X=X, Y=Y, hard_mask=hard_zero_mask)
+    if not minimal:
+        viz.plot_all_wells(wells=wells, X=X, Y=Y, hard_mask=hard_zero_mask)
 
     D = vecfield.make_density(W, hard_zero_mask, G_density, L_density, rng)
     Qx_g, Qy_g = vecfield.make_global_orientation(X.shape, G_align, G_curve, rng)
@@ -57,14 +59,15 @@ def generate_synthetic_shg(
     aux_curve_field, aux_conn_field = vecfield.make_fiber_aux_fields(X.shape, L_curve, L_conn, rng)
     aux_wave_freq_field = vecfield.make_wave_freq_field(X.shape, L_wave_freq, rng)
 
-    np.savez_compressed(
-        f"{save_prefix}_Q_field.npz",
-        Qx=Qx, Qy=Qy, D=D,
-        well_influence=influence,
-        aux_curve_field=aux_curve_field,
-        aux_conn_field=aux_conn_field,
-        aux_wave_freq_field=aux_wave_freq_field,
-    )
+    if not minimal:
+        np.savez_compressed(
+            f"{save_prefix}_Q_field.npz",
+            Qx=Qx, Qy=Qy, D=D,
+            well_influence=influence,
+            aux_curve_field=aux_curve_field,
+            aux_conn_field=aux_conn_field,
+            aux_wave_freq_field=aux_wave_freq_field,
+        )
 
     # Spline stage
     H, Wpx = Qx.shape
@@ -90,20 +93,21 @@ def generate_synthetic_shg(
     opacity_rng = np.random.default_rng(seed + 1234)
     opacity_table = opacity.build_fiber_opacity_table(len(splines), opacity_rng)
 
-    np.savez_compressed(
-        f"{save_prefix}_splines.npz",
-        H=H,
-        W=Wpx,
-        seeds=seeds,
-        fibers=np.array(fibers, dtype=object),
-        splines=np.array(splines, dtype=object),
-        aux_L_curve=aux_L_curve,
-        aux_L_conn=aux_L_conn,
-        aux_L_wave_freq=aux_L_wave_freq,
-        aux_susceptibility=aux_susceptibility,
-        fiber_base=opacity_table.fiber_base,
-        spline_length=spline_length,
-    )
+    if not minimal:
+        np.savez_compressed(
+            f"{save_prefix}_splines.npz",
+            H=H,
+            W=Wpx,
+            seeds=seeds,
+            fibers=np.array(fibers, dtype=object),
+            splines=np.array(splines, dtype=object),
+            aux_L_curve=aux_L_curve,
+            aux_L_conn=aux_L_conn,
+            aux_L_wave_freq=aux_L_wave_freq,
+            aux_susceptibility=aux_susceptibility,
+            fiber_base=opacity_table.fiber_base,
+            spline_length=spline_length,
+        )
 
     # Rasterize -- barebones: splines to pixels, plus the wavy-fiber wobble
     # and the (mostly-subtle-by-default) brightness model.
@@ -124,7 +128,8 @@ def generate_synthetic_shg(
         opacity_table=opacity_table,
     )
 
-    plt.imsave(f"{save_prefix}_raster.png", img, cmap="gray")
+    if not minimal:
+        plt.imsave(f"{save_prefix}_raster.png", img, cmap="gray")
 
     if show_plots:
         fig, ax = plt.subplots(1, 3, figsize=(15, 5))
