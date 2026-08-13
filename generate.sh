@@ -10,6 +10,9 @@ SUBMIT_DIR=$(pwd)
 tar -xzf source.tar.gz
 cd synthetic_shg || exit 1
 
+
+pip install matplotlib
+pip install --upgrade scipy
 #export CONDA_ALWAYS_YES="true"
 
 # 2. Tell conda that the ToS has been acknowledged for this session
