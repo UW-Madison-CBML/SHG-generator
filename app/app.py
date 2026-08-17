@@ -170,7 +170,7 @@ res_col1, res_col2 = st.columns(2)
 
 with res_col1:
     st.subheader("Generated Synthetic SHG Image")
-    render_clicked = st.button("Render Synthetic SHG Image", use_container_width=True, type="primary")
+    render_clicked = st.button("Render Synthetic SHG Image", width="stretch", type="primary")
 
 if render_clicked:
     with st.spinner("Generating SHG image..."):
@@ -266,7 +266,7 @@ if render_clicked:
 
 with res_col1:
     if "cached_shg_image" in st.session_state:
-        st.image(st.session_state["cached_shg_image"], clamp=True, use_column_width=True)
+        st.image(st.session_state["cached_shg_image"], clamp=True, width="stretch")
         
         # --- DOWNLOAD PNG BUTTON ---
         img_arr = st.session_state["cached_shg_image"]
@@ -289,7 +289,7 @@ with res_col1:
             data=buffer,
             file_name=f"shg_image_seed_{current_seed}.png",
             mime="image/png",
-            use_container_width=True
+            width="stretch"
         )
 
         if "active_params" in st.session_state:
@@ -330,7 +330,7 @@ with res_col2:
             data=json_data,
             file_name=f"shg_splines_seed_{current_seed}.json",
             mime="application/json",
-            use_container_width=True
+            width="stretch"
         )
     else:
         # Initial preview before clicking render

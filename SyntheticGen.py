@@ -42,10 +42,14 @@ def generate_synthetic_shg(
 
     # Vector field
     X, Y = vecfield.create_grid(image_size, resolution_factor)
-    wells, W, hard_zero_mask = vecfield.make_wells(X, Y, G_conn, rng)
+    # wells, W, hard_zero_mask = vecfield.make_wells(X, Y, G_conn, rng)
+    # if not minimal:
+    #     viz.plot_all_wells(wells=wells, X=X, Y=Y, hard_mask=hard_zero_mask)
 
-    if not minimal:
-        viz.plot_all_wells(wells=wells, X=X, Y=Y, hard_mask=hard_zero_mask)
+    # Removed wells
+    wells = []
+    W = np.ones_like(X)
+    hard_zero_mask = np.zeros(X.shape, dtype=bool)
 
     D = vecfield.make_density(W, hard_zero_mask, G_density, L_density, rng)
     Qx_g, Qy_g = vecfield.make_global_orientation(X.shape, G_align, G_curve, rng)
