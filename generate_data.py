@@ -65,6 +65,7 @@ def build_synthetic_params(overrides=None):
     params = dict(DEFAULT_SYNTHETIC_PARAMS)
     if overrides:
         params.update(overrides)
+    params["seed"] = random.randint(0, 10000);
     return params
 
 
@@ -168,11 +169,13 @@ def random_shg_params(save_prefix="synthetic"):
         "G_align": random.uniform(0, 1),
         "G_density": random.uniform(0, 1),
         "G_curve": random.uniform(0, 1),
-        "G_conn": random.uniform(0, 1),
+        "G_conn": random.uniform(0.8, 1),
+        "L_susceptibility": random.uniform(0, 1),
         "L_align": random.uniform(0, 1),
         "L_density": random.uniform(0, 1),
         "L_conn": random.uniform(0, 1),
-        "L_curve": random.uniform(0, 1),
+        #50% as 0-0.05 local curvature or something and the other half 0-1
+        "L_curve": random.uniform(0, 0.05) if random.random() < 0.5 else random.uniform(0, 1),
         "spline_length": random.randint(40, 60),
         "spline_num": random.randint(1000, 3000),
         "wave_amplitude_px": random.uniform(4, 8),
@@ -205,7 +208,7 @@ save_data = [];
 for i in range(nr_to_generate):
     args = random_shg_params(save_prefix=run_prefix)
     res = syn.generate_synthetic_shg(**args)
-    datapoint = dict(img=res.image, params=args)
+    datapoint = dict(img=res["image"], params=args)
     save_data.append(datapoint)
     save()
 
@@ -214,7 +217,7 @@ for i in range(np_to_generate):
     for j, class_name in enumerate(synthetic_class_params.keys()):
         args = build_synthetic_params(synthetic_class_params[class_name])
         res = syn.generate_synthetic_shg(**args)
-        datapoint = dict(img=res.image, params=args)
+        datapoint = dict(img=res["image"], params=args)
         save_data.append(datapoint)
         save()
 # save the last batch if it has any data
