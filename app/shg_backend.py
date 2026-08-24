@@ -520,6 +520,39 @@ def generate_fiber(vx: np.ndarray, vy: np.ndarray, seed: np.ndarray, step_size: 
         pts.append(forward)
     return np.vstack(pts)
 
+# adds sinusoidal offset to the fiber points
+def sinusoidal_fiber_offset(pts: np.ndarray, rng: np.random.Generator,
+                            wave_amplitude_px: float = 2.8, wave_wavelength_px: Optional[float] = None,
+                            wave_amp: Optional[np.ndarray] = None, wave_freq: Optional[np.ndarray] = None
+                            ) -> np.ndarray:
+    if pts.ndim != 2 or pts.shape[1] != 2 or pts.size == 0:
+        return pts
+
+    base_wavelength = wave_wavelength_px if wave_wavelength_px is not None else 12.0#max(4.0 * thickness, 6.0)
+    wavelength = base_wavelength * (0.5 + wave_freq)
+
+    wave_amp = wave_amplitude_px * wave_amp
+
+    seg = np.diff(pts, axis=0)
+    seg_len = np.sqrt((seg ** 2).sum(axis=1))
+    cum_len = np.concatenate([[0.0], np.cumsum(seg_len)])
+    total_len = cum_len[-1]
+
+    if total_len < 1e-6:
+        return pts
+
+    n_cycles = total_len / wavelength
+
+    phase_offset = rng.uniform(0, 2 * np.pi)
+    s_frac = cum_len / total_len
+    wave = wave_amp * np.sin(2.0 * np.pi * n_cycles * s_frac + phase_offset)
+
+    tangent = seg / (seg_len[:, None] + 1e-8)
+    normal = np.column_stack([-tangent[:, 1], tangent[:, 0]])
+    normal = np.vstack([normal[0], normal])
+
+    offset_pts = pts + normal * wave[:, None]
+    return offset_pts
 
 def fit_spline(points: np.ndarray, smoothing: float = 2.0, num_samples: int = 400, k: int = 3) -> np.ndarray:
     if len(points) < k + 2:
@@ -577,8 +610,11 @@ def _prep_aux(values: Optional[np.ndarray], n_sp: int, default: float) -> np.nda
 def rasterize_splines(
     H: int, W: int, splines: List[np.ndarray], thickness: float = 3.0, oversample: float = 4.0,
     out_H: Optional[int] = None, out_W: Optional[int] = None, intensity_seed: int = 0,
-    wave_amplitude_px: float = 2.8, wave_wavelength_px: Optional[float] = None,
-    aux_wave_amp: Optional[np.ndarray] = None, aux_wave_freq: Optional[np.ndarray] = None,
+
+    # wave_amplitude_px: float = 2.8, wave_wavelength_px: Optional[float] = None,
+    # aux_wave_amp: Optional[np.ndarray] = None, aux_wave_freq: Optional[np.ndarray] = None,
+
+
     L_conn: float = 0.3, aux_L_conn: Optional[np.ndarray] = None,
     opacity_table: Optional[FiberOpacityTable] = None, opacity_cfg: Optional[Dict[str, Any]] = None
 ) -> np.ndarray:
@@ -593,23 +629,23 @@ def rasterize_splines(
     rng = np.random.default_rng(intensity_seed)
     n_sp = len(splines)
 
-    aux_wave_amp = _prep_aux(aux_wave_amp, n_sp, 1.0)
-    aux_wave_freq = _prep_aux(aux_wave_freq, n_sp, 0.5)
+    # aux_wave_amp = _prep_aux(aux_wave_amp, n_sp, 1.0)
+    # aux_wave_freq = _prep_aux(aux_wave_freq, n_sp, 0.5)
     aux_L_conn = _prep_aux(aux_L_conn, n_sp, L_conn)
 
     if opacity_table is None:
         opacity_table = build_fiber_opacity_table(n_sp, rng, cfg)
 
     stamp_damp = 1.0 / max(cfg["overlap_damp"], 1.0)
-    base_wavelength = wave_wavelength_px if wave_wavelength_px is not None else max(4.0 * thickness, 6.0)
+    # base_wavelength = wave_wavelength_px if wave_wavelength_px is not None else max(4.0 * thickness, 6.0)
 
     for i, spline in enumerate(splines):
         pts = np.asarray(spline)
         if pts.ndim != 2 or pts.shape[1] != 2 or pts.size == 0:
             continue
 
-        amp_i = float(np.clip(aux_wave_amp[i], 0.0, 1.0))
-        freq_i = float(np.clip(aux_wave_freq[i], 0.0, 1.0))
+        # amp_i = float(np.clip(aux_wave_amp[i], 0.0, 1.0))
+        # freq_i = float(np.clip(aux_wave_freq[i], 0.0, 1.0))
         cn = float(aux_L_conn[i])
 
         pts_out = np.empty_like(pts, dtype=np.float64)
@@ -623,9 +659,9 @@ def rasterize_splines(
             continue
         s_vert = np.concatenate([[0.0], np.cumsum(seg_len)])
 
-        wavelength = base_wavelength * (0.5 + freq_i)
-        n_cycles = total_len / wavelength
-        wave_amp = wave_amplitude_px * amp_i
+        # wavelength = base_wavelength * (0.5 + freq_i)
+        # n_cycles = total_len / wavelength
+        # wave_amp = wave_amplitude_px * amp_i
 
         for seg_idx, ((y0, x0), (y1, x1)) in enumerate(zip(pts_out[:-1], pts_out[1:])):
             dy, dx = y1 - y0, x1 - x0
@@ -642,10 +678,10 @@ def rasterize_splines(
                 s_frac = s / total_len
                 y, x = y0 + t * dy, x0 + t * dx
 
-                if wave_amp > 0.0:
-                    wobble = wave_amp * np.sin(2.0 * np.pi * n_cycles * s_frac)
-                    y += wobble * ny_n
-                    x += wobble * nx_n
+                # if wave_amp > 0.0:
+                #     wobble = wave_amp * np.sin(2.0 * np.pi * n_cycles * s_frac)
+                #     y += wobble * ny_n
+                #     x += wobble * nx_n
 
                 op = stamp_opacity(opacity_table, i, s_frac, cn, cfg)
                 stamp = op * stamp_damp
@@ -729,8 +765,8 @@ def generate_shg_image(
         H=shape[0], W=shape[1],
         splines=splines,
         thickness=2.5,
-        aux_wave_amp=aux_curve,
-        aux_wave_freq=aux_wave_freq,
+        # aux_wave_amp=aux_curve,
+        # aux_wave_freq=aux_wave_freq,
         aux_L_conn=aux_conn,
         intensity_seed=seed
     )

@@ -24,7 +24,6 @@ from shg_backend import (
     sample_seeds_from_density,
     sample_field_at_seeds,
     generate_fiber,
-    sinusoidal_fiber_offset,
     fit_spline,
     rasterize_splines,
     generate_custom_fields_from_canvas,
@@ -171,7 +170,7 @@ res_col1, res_col2 = st.columns(2)
 
 with res_col1:
     st.subheader("Generated Synthetic SHG Image")
-    render_clicked = st.button("Render Synthetic SHG Image", width="stretch", type="primary")
+    render_clicked = st.button("Render Synthetic SHG Image", use_container_width=True, type="primary")
 
 if render_clicked:
     with st.spinner("Generating SHG image..."):
@@ -240,16 +239,15 @@ if render_clicked:
                 susceptibility=1.0 - aux_curve[i],
                 rng=rng
             )
-            offset_fiber = sinusoidal_fiber_offset(raw_fiber, wave_amp=aux_curve[i], wave_freq=aux_wave_freq[i], rng=rng)
-            splines.append(fit_spline(offset_fiber, num_samples=max(50, run_params["spline_length"] * 2)))
+            splines.append(fit_spline(raw_fiber, num_samples=max(50, run_params["spline_length"] * 2)))
 
         # Rasterize image
         raster_img = rasterize_splines(
             H=shape[0], W=shape[1],
             splines=splines,
             thickness=run_params["thickness"],
-            # aux_wave_amp=aux_curve,
-            # aux_wave_freq=aux_wave_freq,
+            aux_wave_amp=aux_curve,
+            aux_wave_freq=aux_wave_freq,
             aux_L_conn=aux_conn,
             intensity_seed=current_seed
         )
@@ -268,7 +266,7 @@ if render_clicked:
 
 with res_col1:
     if "cached_shg_image" in st.session_state:
-        st.image(st.session_state["cached_shg_image"], clamp=True, width="stretch")
+        st.image(st.session_state["cached_shg_image"], clamp=True)
         
         # --- DOWNLOAD PNG BUTTON ---
         img_arr = st.session_state["cached_shg_image"]
@@ -291,7 +289,7 @@ with res_col1:
             data=buffer,
             file_name=f"shg_image_seed_{current_seed}.png",
             mime="image/png",
-            width="stretch"
+            use_container_width=True
         )
 
         if "active_params" in st.session_state:
@@ -332,7 +330,7 @@ with res_col2:
             data=json_data,
             file_name=f"shg_splines_seed_{current_seed}.json",
             mime="application/json",
-            width="stretch"
+            use_container_width=True
         )
     else:
         # Initial preview before clicking render
