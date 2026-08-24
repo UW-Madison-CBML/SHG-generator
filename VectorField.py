@@ -22,7 +22,7 @@ def create_grid(image_size, resolution_factor):
     y = np.linspace(0, 1, M)
     return np.meshgrid(x, y)
 
-
+# Can remove this function
 def _tangent_q_from_gradient(gx, gy, Qx_g, Qy_g):
     # Return axial Q for fiber tangent perpendicular to the well potential gradient.
     grad_len = np.sqrt(gx * gx + gy * gy) + 1e-8
@@ -128,12 +128,14 @@ def make_density(W, hard_zero_mask, G_density, L_density, rng):
     D = np.where(hard_zero_mask, 0.0, D)
 
     valid = ~hard_zero_mask
+    # Mean normalize (redundant now)
     if np.any(valid):
         mean_valid = D[valid].mean()
         if mean_valid > 1e-8:
             D = np.where(valid, D / mean_valid * G_density, 0.0)
 
-    D = np.clip(D, 0.0, None)
+    D = np.clip(D, 0.0, None) # clipping
+    # Mean normalize (redundant now)
     if np.any(valid):
         mean_valid = D[valid].mean()
         if mean_valid > 1e-8:
